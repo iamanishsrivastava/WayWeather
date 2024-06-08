@@ -20,9 +20,9 @@ def format_weather_message(data):
     city = data["location"]["name"]
     current_temp_c = data["current"]["temp_c"]
     weather_description = data["current"]["condition"]["text"]
-    return (f"**{city} ka Mausam:**\n\n"
-            f"*Aaj ka mausam: {weather_description}\n"
-            f"*Taapmaan: {current_temp_c}°C\n")
+    return (f"**{city}'s Weather :**\n\n"
+            f"* Today's Weather : {weather_description}\n"
+            f"* Current Temperature : {current_temp_c}°C\n")
 
 def handle_weather_request(message, city):
     weather_data = get_weather(city)
@@ -39,8 +39,8 @@ bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     welcome_message = (f"Hi {message.from_user.first_name}! \n\n"
-                       f"I'm a weather bot developed by Anish and team. Get the weather for any city by typing its name or 'weather' followed by the city name.\n\n"
-                       f"For example, try:\n* 'weather Bangalore'\n* 'Delhi'")
+                       f"I'm a personal Weather Bot developed by group of engineers to get the weather for any city by just typing it's name or 'weather' followed by the city name .\n\n"
+                       f"For example, try:\n* 'weather Bangalore'\n* ',Delhi'")
     bot.send_message(message.chat.id, welcome_message)
 
 # Handle text messages
