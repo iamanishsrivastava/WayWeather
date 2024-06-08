@@ -1,1 +1,1 @@
-python MainNisha.py
+python main.py
