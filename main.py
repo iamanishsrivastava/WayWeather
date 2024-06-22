@@ -14,7 +14,8 @@ WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
 def get_weather(city):
     url = f"https://api.weatherapi.com/v1/current.json?key={WEATHER_API_KEY}&q={city}"
     response = requests.get(url)
-    return response.json()  # Assuming successful request
+    return response.json()
+     # Assuming successful request
 
 # Function to format the weather message
 def format_weather_message(data):
@@ -27,9 +28,12 @@ def format_weather_message(data):
 
 # Function to handle the /start command
 def start(update, context):
-    update.message.reply_text(f"Hi {update.message.from_user.first_name}! \n\n"
-                              "I'm a weather bot developed by Anish and team. Get the weather for any city by typing its name or 'weather' followed by the city name.\n\n"
-                              "For example, try:\n* 'weather Bangalore'\n* 'Delhi'")
+    update.message.reply_text(f"Hello {update.message.from_user.first_name}! 🌞\n\n"
+                              "Welcome to our weather bot, created by a team of passionate engineering students from DSCE. Whether you're planning a picnic, checking on your travel destinations, or simply curious about the weather, I'm here to help!\n\n"
+                              "Just type the name of any city or 'weather' followed by the city name to get started. For example:\n"
+                              "• 'weather Bangalore'\n"
+                              "• 'weather Delhi'\n\n"
+                              "Let's dive into the world of weather! 🌍☀️🌧️❄️")
 
 # Function to handle weather requests
 def handle_weather_request(update, city):
