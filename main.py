@@ -1,12 +1,13 @@
 import os
 import requests
 from dotenv import load_dotenv
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
-from telegram import ParseMode
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, ParseMode
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler, ConversationHandler
+from datetime import date, timedelta, datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from datetime import datetime, time
 import pytz
+import calendar
 
 # Load environment variables from .env file
 load_dotenv()
@@ -14,6 +15,8 @@ load_dotenv()
 # Access environment variables from .env
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
+
+SET_DATE, SET_TIME, SET_CITY = range(3)
 
 # Timezone for scheduling (change as per your requirement)
 TIMEZONE = 'Asia/Kolkata'
@@ -41,38 +44,63 @@ def format_weather_message(data):
     weather_description = data["current"]["condition"]["text"].lower()
     
     if "sunny" in weather_description:
-        return (f"☀ Current Weather in {city}:\n\n"
+        return (f"☀️ Current Weather in {city}:\n\n"
                 f"It's a bright and sunny day with a temperature of {current_temp_c}°C. Perfect weather to soak up some sunshine and enjoy the outdoors! 🌞")
     elif "cloudy" in weather_description:
-        return (f"☁ Current Weather in {city}:\n\n"
-                f"The temperature is {current_temp_c}°C, with a blanket of clouds overhead. A great day for a cozy indoor activity or a leisurely walk! ☁")
+        return (f"☁️ Current Weather in {city}:\n\n"
+                f"The temperature is {current_temp_c}°C, with a blanket of clouds overhead. A great day for a cozy indoor activity or a leisurely walk! ☁️")
     elif any(keyword in weather_description for keyword in ["rain", "showers"]):
-        return (f"🌧 Current Weather in {city}:\n\n"
-                f"It's {current_temp_c}°C with rain showers. Don’t forget your umbrella if you're heading out, and maybe enjoy the soothing sound of the rain! 🌧")
+        return (f"🌧️ Current Weather in {city}:\n\n"
+                f"It's {current_temp_c}°C with rain showers. Don’t forget your umbrella if you're heading out, and maybe enjoy the soothing sound of the rain! 🌧️")
     elif "snow" in weather_description:
-        return (f"❄ Current Weather in {city}:\n\n"
-                f"Brrr, it’s {current_temp_c}°C with a snowy wonderland outside. Bundle up if you're going out, or stay warm and watch the snowflakes dance! ❄")
+        return (f"❄️ Current Weather in {city}:\n\n"
+                f"Brrr, it’s {current_temp_c}°C with a snowy wonderland outside. Bundle up if you're going out, or stay warm and watch the snowflakes dance! ❄️")
     elif "windy" in weather_description:
-        return (f"🌬 Current Weather in {city}:\n\n"
-                f"The temperature is {current_temp_c}°C, and it's quite windy out there. Hold onto your hat and enjoy the brisk breeze! 🌬")
+        return (f"🌬️ Current Weather in {city}:\n\n"
+                f"The temperature is {current_temp_c}°C, and it's quite windy out there. Hold onto your hat and enjoy the brisk breeze! 🌬️")
     elif any(keyword in weather_description for keyword in ["storm", "thunderstorm"]):
-        return (f"⛈ Current Weather in {city}:\n\n"
-                f"It's {current_temp_c}°C with a storm brewing. Stay safe indoors, and perhaps enjoy a good book or movie while the storm passes! ⛈")
+        return (f"⛈️ Current Weather in {city}:\n\n"
+                f"It's {current_temp_c}°C with a storm brewing. Stay safe indoors, and perhaps enjoy a good book or movie while the storm passes! ⛈️")
     elif "fog" in weather_description:
-        return (f"🌫 Current Weather in {city}:\n\n"
-                f"With a temperature of {current_temp_c}°C, it's quite foggy. Drive safely and take it slow in the low visibility! 🌫")
+        return (f"🌫️ Current Weather in {city}:\n\n"
+                f"With a temperature of {current_temp_c}°C, it's quite foggy. Drive safely and take it slow in the low visibility! 🌫️")
     elif "partly cloudy" in weather_description:
-        return (f"🌤 Current Weather in {city}:\n\n"
-                f"The temperature is {current_temp_c}°C with some clouds in the sky. It's a mix of sun and clouds, perfect weather for a day outdoors! 🌤")
+        return (f"🌤️ Current Weather in {city}:\n\n"
+                f"The temperature is {current_temp_c}°C with some clouds in the sky. It's a mix of sun and clouds, perfect weather for a day outdoors! 🌤️")
     elif "overcast" in weather_description:
-        return (f"🌥 Current Weather in {city}:\n\n"
-                f"It's {current_temp_c}°C with overcast skies. The sky is completely covered with clouds, making it a bit gloomy outside. 🌥")
+        return (f"🌥️ Current Weather in {city}:\n\n"
+                f"It's {current_temp_c}°C with overcast skies. The sky is completely covered with clouds, making it a bit gloomy outside. 🌥️")
     elif "mist" in weather_description:
-        return (f"🌫 Current Weather in {city}:\n\n"
-                f"The temperature is {current_temp_c}°C with mist in the air. The visibility is reduced, so take care if you're driving or walking outdoors! 🌫")
+        return (f"🌫️ Current Weather in {city}:\n\n"
+                f"The temperature is {current_temp_c}°C with mist in the air. The visibility is reduced, so take care if you're driving or walking outdoors! 🌫️")
     else:
         return (f"Current Weather in {city}:\n\n"
                 f"The temperature is {current_temp_c}°C with {weather_description}.")
+
+def send_daytime_alert(context):
+    current_time = datetime.now(pytz.timezone(TIMEZONE)).time()
+
+    # Check if current time is between 8 AM and 8 PM
+    if current_time >= time(8, 0) and current_time <= time(20, 0):
+        # Iterate through user settings
+        for user_id in user_settings:
+            # Get user's city preference
+            city = user_settings[user_id]['city']
+
+            # Fetch weather data for the user's city
+            weather_data = get_weather(city)
+
+            # Check for errors in weather data retrieval
+            if "error" in weather_data:
+                message = f"Error: {weather_data['error']['message']}"
+            else:
+                # Format the weather message using the retrieved data
+                message = format_weather_message(weather_data)
+
+            # Send the formatted weather message to the user
+            context.bot.send_message(chat_id=user_id, text=message, parse_mode=ParseMode.MARKDOWN)
+    else:
+        print("Skipping daytime alert as it is outside of specified hours.")
 
 # Function to send weather update message
 def send_weather_update(context):
@@ -85,39 +113,83 @@ def send_weather_update(context):
             message = format_weather_message(weather_data)
         context.bot.send_message(chat_id=user_id, text=message, parse_mode=ParseMode.MARKDOWN)
 
-# Function to send daytime alerts every 4 hours
-def send_daytime_alert(context):
-    current_time = datetime.now(pytz.timezone(TIMEZONE)).time()
-    if current_time >= time(8, 0) and current_time <= time(20, 0):  # Check if current time is between 8 AM and 8 PM
-        for user_id in user_settings:
-            context.bot.send_message(chat_id=user_id, text="Hello! Just a friendly alert from your weather bot. Have a great day!")
-    else:
-        print("Skipping daytime alert as it is outside of specified hours.")
-
 # Function to handle /setweather command
 def set_weather(update, context):
-    if len(context.args) < 2:
-        update.message.reply_text("Please provide both time and city in the format: /setweather HH:MM CityName")
-        return
+    update.message.reply_text("Please select the date for your weather update:", reply_markup=get_date_keyboard(datetime.now().year, datetime.now().month))
+    return SET_DATE
+
+# Function to generate a calendar keyboard for date selection
+def get_date_keyboard(year, month):
+    keyboard = []
+    days = calendar.monthcalendar(year, month)
+    for week in days:
+        row = []
+        for day in week:
+            if day == 0:
+                row.append(InlineKeyboardButton(" ", callback_data="ignore"))
+            else:
+                row.append(InlineKeyboardButton(str(day), callback_data=f"date_{year}_{month}_{day}"))
+        keyboard.append(row)
+    keyboard.append([InlineKeyboardButton("Next Month >>", callback_data=f"next_month_{year}_{month}")])
+    return InlineKeyboardMarkup(keyboard)
+
+# Function to handle date selection
+def date_handler(update, context):
+    query = update.callback_query
+    query.answer()
     
-    try:
-        time_str = context.args[0]
-        city = " ".join(context.args[1:])
-        
-        # Validate time format
-        datetime.strptime(time_str, "%H:%M")
-        
-        # Store user settings
-        user_id = update.message.from_user.id
-        user_settings[user_id] = {'time': time_str, 'city': city}
-        
-        update.message.reply_text(f"Got it! I will send you daily weather updates for {city} at {time_str} (local time).")
-        
-        # Schedule the weather update
-        schedule_weather_update(context)
-        
-    except ValueError:
-        update.message.reply_text("Invalid time format. Please use HH:MM format for time.")
+    if query.data.startswith("next_month"):
+        year, month = map(int, query.data.split("_")[2:])
+        if month == 12:
+            year += 1
+            month = 1
+        else:
+            month += 1
+        query.edit_message_text(text="Please select the date:", reply_markup=get_date_keyboard(year, month))
+    else:
+        year, month, day = map(int, query.data.split("_")[1:])
+        selected_date = date(year, month, day)
+        context.user_data['selected_date'] = selected_date
+        query.edit_message_text(text=f"Selected date: {selected_date}. Please select the time for your weather update:", reply_markup=get_time_keyboard())
+        return SET_TIME
+
+# Function to generate a time keyboard for hour selection
+def get_time_keyboard():
+    keyboard = []
+    for hour in range(24):
+        row = []
+        for minute in [0, 15, 30, 45]:
+            row.append(InlineKeyboardButton(f"{hour:02}:{minute:02}", callback_data=f"time_{hour}_{minute}"))
+        keyboard.append(row)
+    return InlineKeyboardMarkup(keyboard)
+
+# Function to handle time selection
+def time_handler(update, context):
+    query = update.callback_query
+    query.answer()
+    
+    hour, minute = map(int, query.data.split("_")[1:])
+    selected_time = f"{hour:02}:{minute:02}"
+    context.user_data['selected_time'] = selected_time
+    
+    query.edit_message_text(text=f"Selected time: {selected_time}. Please enter your city name:")
+    return SET_CITY
+
+# Function to handle city input
+def city_handler(update, context):
+    user_id = update.message.from_user.id
+    city = update.message.text.strip()
+    context.user_data['city'] = city
+    
+    # Store user settings
+    user_settings[user_id] = {
+        'time': context.user_data['selected_time'],
+        'city': city
+    }
+    
+    update.message.reply_text(f"Weather updates set for {context.user_data['selected_date']} at {context.user_data['selected_time']} for city {city}.")
+    schedule_weather_update(context)
+    return ConversationHandler.END
 
 # Function to handle /stopweather command
 def stop_weather(update, context):
@@ -128,7 +200,6 @@ def stop_weather(update, context):
     else:
         update.message.reply_text("You haven't set any daily weather updates yet.")
 
-# Function to schedule weather updates
 def schedule_weather_update(context):
     global scheduler
     if scheduler.running:
@@ -143,8 +214,13 @@ def schedule_weather_update(context):
         
         hour, minute = map(int, time_str.split(':'))
         
-        trigger = CronTrigger(hour=hour, minute=minute, timezone=pytz.timezone(TIMEZONE))
-        scheduler.add_job(send_weather_update, trigger=trigger, args=[context])
+        # Schedule weather update for each user
+        weather_trigger = CronTrigger(hour=hour, minute=minute, timezone=pytz.timezone(TIMEZONE))
+        scheduler.add_job(send_weather_update, trigger=weather_trigger, args=[context])
+        
+        # Schedule daytime alert every 4 hours
+        daytime_trigger = CronTrigger(hour='*/4', timezone=pytz.timezone(TIMEZONE))
+        scheduler.add_job(send_daytime_alert, trigger=daytime_trigger, args=[context])
     
     scheduler.start()
 
@@ -153,10 +229,10 @@ def start(update, context):
     update.message.reply_text(f"Hello {update.message.from_user.first_name}! 🌞\n\n"
                               "Welcome to our weather bot, created by a team of passionate engineering students from DSCE. Whether you're planning a picnic, checking on your travel destinations, or simply curious about the weather, I'm here to help!\n\n"
                               "To set your daily weather update time and city, use the command:\n"
-                              "/setweather HH:MM CityName\n\n"
+                              "/setweather\n\n"
                               "To stop receiving daily weather updates, use:\n"
                               "/stopweather\n\n"
-                              "Let's dive into the world of weather! 🌍☀🌧❄")
+                              "Let's dive into the world of weather! 🌍☀️🌧️❄️")
 
 # Function to handle messages
 def message_handler(update, context):
@@ -165,3 +241,41 @@ def message_handler(update, context):
         set_weather(update, context)
     elif text == "/stopweather":
         stop_weather(update, context)
+    else:
+        update.message.reply_text("I don't understand that command. Please use /setweather to set daily weather updates or /stopweather to stop them.")
+
+# Define the main function to start the bot
+def main():
+    updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
+    dp = updater.dispatcher
+
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('setweather', set_weather)],
+        states={
+            SET_DATE: [CallbackQueryHandler(date_handler, pattern='^date_|next_month')],
+            SET_TIME: [CallbackQueryHandler(time_handler, pattern='^time_')],
+            SET_CITY: [MessageHandler(Filters.text & ~Filters.command, city_handler)]
+        },
+        fallbacks=[CallbackQueryHandler(date_handler, pattern='^ignore$')],
+        allow_reentry=True
+    )
+
+    dp.add_handler(conv_handler)
+    
+    # Command handlers
+    dp.add_handler(CommandHandler('start', start))
+    dp.add_handler(CommandHandler('stopweather', stop_weather))
+
+    # Message handler
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, message_handler))
+    scheduler.start()
+
+    # Start the bot
+    updater.start_polling()
+    print("Telegram bot is now running.")
+
+    # Keep the program running
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
